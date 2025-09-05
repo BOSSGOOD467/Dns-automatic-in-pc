@@ -1,1 +1,0 @@
-# Dns-automatic-in-pc
