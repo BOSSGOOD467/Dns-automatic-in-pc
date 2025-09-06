@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# bima_dns_switcher.py — Ultimate merged DNS switcher (Chart.js dashboard)
+# dns_switcher.py — Ultimate merged DNS switcher (Chart.js dashboard)
 # Requirements: flask, psutil, requests, dnspython
 # pip install flask psutil requests dnspython
 
@@ -31,8 +31,8 @@ from collections import deque
 # -------------------------
 CONFIG_FILE = "dns_config.json"
 STATE_FILE = "dns_state.txt"
-LOG_FILE = "bima_dns_switcher.log"
-CSV_FILE = "bima_dns_history.csv"
+LOG_FILE = "dns_switcher.log"
+CSV_FILE = "dns_history.csv"
 MAX_LOG_BYTES = 10_000_000
 LOG_BACKUPS = 3
 
@@ -79,13 +79,13 @@ DNS_IPV6_MASTER = [
 
 GAMES_BASE = ["valorant.exe","csgo.exe","dota2.exe","pubg.exe","apex.exe","fortnite.exe","overwatch.exe",
     "leagueoflegends.exe","minecraft.exe","gta5.exe","rust.exe","rainbowsix.exe","warzone.exe",
-    "rocketleague.exe","escape_from_tarkov.exe","palworld.exe","starfield.exe","eldenring.exe",
-    "worldofwarcraft.exe","fifa24.exe","genshinimpact.exe","hogwartslegacy.exe","roblox.exe","CombatMaster.exe","HD-Player.exe"]
+    "rocketleague.exe","escape_from_tarkov.exe","palworld.exe","starfield.exe","eldenring.exe","tiktok.exe"
+"worldofwarcraft.exe","fifa24.exe","genshinimpact.exe","hogwartslegacy.exe","roblox.exe","CombatMaster.exe","HD-Player.exe"]
 
 # -------------------------
 # LOGGING
 # -------------------------
-logger = logging.getLogger("bima_dns_switcher")
+logger = logging.getLogger("dns_switcher")
 logger.setLevel(logging.INFO)
 handler = RotatingFileHandler(LOG_FILE, maxBytes=MAX_LOG_BYTES, backupCount=LOG_BACKUPS, encoding="utf-8")
 handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
@@ -107,7 +107,7 @@ def show_error_popup(msg):
     """Windows popup error (fallback ke console)"""
     try:
         if platform.system() == "Windows":
-            ctypes.windll.user32.MessageBoxW(0, msg, "Bima DNS Switcher — Error", 0x10)
+            ctypes.windll.user32.MessageBoxW(0, msg, "DNS Switcher — Error", 0x10)
         else:
             print("❌", msg)
     except:
@@ -409,7 +409,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bima DNS Switcher Dashboard</title>
+    <title>DNS Switcher Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -439,7 +439,7 @@ HTML_TEMPLATE = """
     </style>
 </head>
 <body>
-    <header><div class="container"><div class="header-content"><div class="logo"><i class="fas fa-network-wired"></i><h1>Bima DNS Switcher</h1></div><div class="last-update"><i class="fas fa-sync-alt"></i><span>Update setiap <span id="refreshRate">{{ refresh_rate }}</span> detik</span></div></div></div></header>
+    <header><div class="container"><div class="header-content"><div class="logo"><i class="fas fa-network-wired"></i><h1>DNS Switcher</h1></div><div class="last-update"><i class="fas fa-sync-alt"></i><span>Update setiap <span id="refreshRate">{{ refresh_rate }}</span> detik</span></div></div></div></header>
     <div class="container">
         <div class="dashboard-grid">
             <div class="card"><div class="card-header"><h2 class="card-title"><i class="fas fa-server"></i> DNS Status</h2><span class="stat-badge badge-success" id="statusBadge">{{ data.status }}</span></div><div class="stat-item"><div class="stat-label"><i class="fas fa-exchange-alt"></i><span>Current DNS</span></div><div class="stat-value" id="currentDns">{{ data.current_dns }}</div></div><div class="stat-item"><div class="stat-label"><i class="fas fa-tachometer-alt"></i><span>Latency</span></div><div class="stat-value" id="latency">{{ data.latency }} ms</div></div></div>
@@ -606,7 +606,7 @@ def worker_main():
             dashboard_data["status"] = "Menguji..."
             if config["clear_terminal"]:
                 clear_terminal()
-                print("Bima DNS Switcher - Monitoring Kinerja DNS\n" + "="*50)
+                print("DNS Switcher - Monitoring Kinerja DNS\n" + "="*50)
                 print(f"Interface: {', '.join(interfaces)} | Interval: {config['interval']}s")
                 print(f"Deteksi Game: {'Aktif' if config['game_pause'] else 'Nonaktif'}")
                 print("="*50 + "\n")
@@ -679,7 +679,7 @@ def worker_main():
 # ENTRY
 # -------------------------
 if __name__ == "__main__":
-    log_info("Bima DNS Switcher mulai...")
+    log_info("DNS Switcher mulai...")
     try:
         worker_main()
     except Exception as e:
@@ -687,67 +687,3 @@ if __name__ == "__main__":
         show_error_popup(f"Fatal error: {e}")
     finally:
         cleanup_and_exit()
-
-
-def ping_once(host, timeout_ms):
-    try:
-        system = platform.system()
-        if system == "Windows":
-            cmd = ["ping"]
-            if ":" in host:
-                cmd += ["-6"]
-            cmd += ["-n", "1", f"-w{int(timeout_ms)}", host]
-        else:
-            if ":" in host:
-                ping_cmd = "ping6" if shutil_which("ping6") else "ping"
-            else:
-                ping_cmd = "ping"
-            if platform.system() == "Darwin":
-                # MacOS uses -t for timeout (seconds)
-                timeout_sec = max(1, int(timeout_ms / 1000))
-                cmd = [ping_cmd, "-c", "1", "-t", str(timeout_sec), host]
-            else:
-                # Linux uses -W for timeout (seconds)
-                timeout_sec = max(1, int(timeout_ms / 1000))
-                cmd = [ping_cmd, "-c", "1", "-W", str(timeout_sec), host]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=(timeout_ms/1000)+2)
-        out = proc.stdout + proc.stderr
-        m = re.search(r"time[=<]?\s?(\d+\.?\d*)", out)
-        if m:
-            return int(float(m.group(1)))
-        if "<1" in out:
-            return 1
-    except subprocess.TimeoutExpired:
-        return None
-    except Exception:
-        return None
-    return None
-
-
-def http_latency(host, timeout_ms):
-    test_urls = [
-        f"https://{host}/",
-        "https://dns.google/",
-        "https://1.1.1.1/cdn-cgi/trace"
-    ]
-    for url in test_urls:
-        try:
-            start = time.time()
-            requests.get(url, timeout=timeout_ms/1000, verify=False)
-            return int((time.time() - start) * 1000)
-        except Exception:
-            continue
-    return None
-
-
-def test_host_latency(host):
-    ping_count = max(1, int(config.get("ping_count", 3)))
-    latencies = []
-    for _ in range(ping_count):
-        l = ping_once(host, config.get("ping_timeout_ms", 1000))
-        if l is not None:
-            latencies.append(l)
-        time.sleep(config.get("ping_delay_s", 0.12))
-    if latencies:
-        return int(median(latencies))
-    return http_latency(host, config.get("ping_timeout_ms", 1000))
