@@ -17,7 +17,7 @@ import logging
 import csv
 import psutil
 import requests
-import dns.resolver  # [BARU] Import dnspython untuk pengujian query DNS
+import dns.resolver
 from statistics import median
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from logging.handlers import RotatingFileHandler
@@ -45,12 +45,11 @@ DEFAULT_CONFIG = {
     "dns_query_domain": "google.com",
     "use_ipv6": True,
     "auto_disable_ipv6": True,
-    # [DIUBAH] Host default ke 127.0.0.1 untuk keamanan
     "dashboard": {"enabled": True, "host": "127.0.0.1", "port": 8080, "refresh_s": 5},
     "fallback_dns": ["8.8.8.8", "1.1.1.1", "9.9.9.9"],
     "auto_restart_adapter": True,
     "game_pause": True,
-    "game_cache_seconds": 5,
+    "game_cache_seconds": 3,
     "dns_update_url": "",
     "custom_dns": [],
     "games": [],
@@ -126,13 +125,8 @@ def load_config():
         except Exception as e:
             log_warn(f"Gagal baca {CONFIG_FILE}: {e} — pake default")
     # validation
-    if cfg["interval"] < 30:
-        log_warn("Interval < 30s, set ke 30s")
-        cfg["interval"] = 30
-    if cfg["threads"] < 1:
-        cfg["threads"] = 1
-    if cfg["threads"] > 50:
-        cfg["threads"] = 50
+    cfg["interval"] = max(30, cfg.get("interval", 60))
+    cfg["threads"] = max(1, min(50, cfg.get("threads", 10)))
     if "games" not in cfg:
         cfg["games"] = []
     return cfg
@@ -160,49 +154,68 @@ def is_admin():
         return False
 
 # -------------------------
+# IPv6 connectivity check
+# -------------------------
+def check_ipv6_connectivity():
+    """Mencoba ping ke alamat IPv6 untuk memeriksa konektivitas."""
+    log_info("Memeriksa konektivitas IPv6...")
+    system = platform.system()
+    try:
+        if system == "Windows":
+            cmd = ["ping", "-6", "-n", "1", "2001:4860:4860::8888"]
+        else: # Linux, Darwin
+            cmd = ["ping6", "-c", "1", "2001:4860:4860::8888"]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            log_info("✓ Konektivitas IPv6 terdeteksi.")
+            return True
+        else:
+            log_warn("⚠ Konektivitas IPv6 tidak ditemukan.")
+            return False
+    except (FileNotFoundError, subprocess.TimeoutExpired, Exception) as e:
+        log_warn(f"Pemeriksaan IPv6 gagal: {e}")
+        return False
+
+# -------------------------
 # network interfaces utils
 # -------------------------
 def get_interfaces():
+    # Menambahkan komentar untuk menjelaskan logika
     system = platform.system()
-    if system == "Windows":
-        try:
+    interfaces = []
+    try:
+        if system == "Windows":
+            # Metode utama: 'netsh' untuk mendapatkan nama interface yang terhubung
             out = subprocess.run(["netsh", "interface", "show", "interface"], capture_output=True, text=True, encoding="utf-8")
-            interfaces = []
             for line in out.stdout.splitlines():
                 if "Connected" in line or "Terhubung" in line:
                     parts = line.split()
                     if len(parts) >= 4:
                         interfaces.append(" ".join(parts[3:]).strip())
-            return interfaces
-        except Exception as e:
-            log_warn(f"get_interfaces Windows error: {e}")
-            return []
-    else:
-        try:
-            out = subprocess.run(["nmcli", "-t", "-f", "DEVICE,STATE", "device"], capture_output=True, text=True)
-            interfaces = []
-            for line in out.stdout.splitlines():
-                if ":" in line:
-                    dev, state = line.split(":", 1)
-                    if state.strip() == "connected":
-                        interfaces.append(dev.strip())
-            return interfaces
-        except Exception:
-            try:
+        
+        elif system in ["Linux", "Darwin"]:
+            # Metode utama: 'nmcli' untuk Linux jika tersedia, ini lebih andal
+            if shutil_which("nmcli"):
+                out = subprocess.run(["nmcli", "-t", "-f", "DEVICE,STATE", "device"], capture_output=True, text=True)
+                for line in out.stdout.splitlines():
+                    if ":" in line:
+                        dev, state = line.split(":", 1)
+                        if state.strip() == "connected":
+                            interfaces.append(dev.strip())
+            else: 
+                # Fallback untuk sistem non-nmcli (Linux dasar atau BSD)
                 out = subprocess.run(["ip", "link", "show", "up"], capture_output=True, text=True)
-                interfaces = []
-                # [FIX] Memperbaiki typo 'for line out' menjadi 'for line in'
                 for line in out.stdout.splitlines():
                     m = re.match(r"\d+: (\S+): <", line)
                     if m and m.group(1) != 'lo':
                         interfaces.append(m.group(1))
-                return interfaces
-            except Exception as e:
-                log_warn(f"get_interfaces fallback error: {e}")
-                return []
+    except Exception as e:
+        log_warn(f"get_interfaces error: {e}")
+    return interfaces
 
 # -------------------------
-# [DIUBAH] Latency Test menggunakan DNS Query (lebih akurat)
+# Latency Test using DNS Query
 # -------------------------
 def test_dns_latency(dns_server):
     resolver = dns.resolver.Resolver(configure=False)
@@ -221,7 +234,6 @@ def test_dns_latency(dns_server):
             end_time = time.monotonic()
             latencies.append(int((end_time - start_time) * 1000))
         except Exception:
-            # Jika query gagal, tidak menambahkan latency
             pass
         time.sleep(config.get("dns_query_delay_s", 0.1))
 
@@ -236,26 +248,21 @@ def set_dns_on_interface(interface, dns):
     system = platform.system()
     try:
         if system == "Windows":
-            if ":" in dns:
-                cmd = ['netsh', 'interface', 'ipv6', 'set', 'dns', f'name={interface}', 'static', dns]
-            else:
-                cmd = ['netsh', 'interface', 'ip', 'set', 'dns', f'name={interface}', 'static', dns]
+            proto = 'ipv6' if ":" in dns else 'ip'
+            cmd = ['netsh', 'interface', proto, 'set', 'dns', f'name="{interface}"', 'static', dns]
             res = subprocess.run(cmd, capture_output=True, text=True, check=False)
             ok = (res.returncode == 0)
             if ok:
                 subprocess.run(["ipconfig", "/flushdns"], capture_output=True, check=False)
             return ok
-        elif system == "Linux":
-            if shutil_which("nmcli"):
-                res = subprocess.run(["nmcli", "device", "modify", interface, "ipv4.dns", dns], capture_output=True, text=True, check=False)
-                return res.returncode == 0
-            else:
-                try:
-                    with open("/etc/resolv.conf", "w", encoding="utf-8") as f:
-                        f.write(f"nameserver {dns}\n")
-                    return True
-                except Exception:
-                    return False
+        elif system == "Linux" and shutil_which("nmcli"):
+            proto = "ipv6.dns" if ":" in dns else "ipv4.dns"
+            res = subprocess.run(["nmcli", "connection", "modify", interface, proto, dns], capture_output=True, text=True, check=False)
+            if res.returncode == 0:
+                # Re-apply connection to take effect
+                subprocess.run(["nmcli", "connection", "up", interface], capture_output=True, text=True, check=False)
+                return True
+            return False
         elif system == "Darwin":
             res = subprocess.run(["networksetup", "-setdnsservers", interface, dns], capture_output=True, text=True, check=False)
             return res.returncode == 0
@@ -267,11 +274,12 @@ def reset_dns_on_interface(interface):
     system = platform.system()
     try:
         if system == "Windows":
-            subprocess.run(['netsh','interface','ip','set','dns', f'name={interface}', 'dhcp'], capture_output=True, check=False)
-            subprocess.run(['netsh','interface','ipv6','set','dns', f'name={interface}', 'dhcp'], capture_output=True, check=False)
-        elif system == "Linux":
-            if shutil_which("nmcli"):
-                subprocess.run(["nmcli", "device", 'modify', interface, "ipv4.dns", ""], capture_output=True, check=False)
+            subprocess.run(['netsh','interface','ip','set','dns', f'name="{interface}"', 'dhcp'], capture_output=True, check=False)
+            subprocess.run(['netsh','interface','ipv6','set','dns', f'name="{interface}"', 'dhcp'], capture_output=True, check=False)
+        elif system == "Linux" and shutil_which("nmcli"):
+            subprocess.run(["nmcli", "connection", 'modify', interface, "ipv4.dns", ""], capture_output=True, check=False)
+            subprocess.run(["nmcli", "connection", 'modify', interface, "ipv6.dns", ""], capture_output=True, check=False)
+            subprocess.run(["nmcli", "connection", "up", interface], capture_output=True, text=True, check=False)
         elif system == "Darwin":
             subprocess.run(["networksetup","-setdnsservers",interface,"Empty"], capture_output=True, check=False)
     except Exception as e:
@@ -301,40 +309,63 @@ def is_game_running():
     return False
 
 # -------------------------
-# clear terminal function
-# -------------------------
-def clear_terminal():
-    os.system('cls' if platform.system() == 'Windows' else 'clear')
-
-# -------------------------
-# DNS verification function
+# [PENYEMPURNAAN AKHIR] Fungsi verifikasi DNS yang sangat andal
 # -------------------------
 def verify_dns_change(interfaces, expected_dns):
     system = platform.system()
     time.sleep(2)  # Beri waktu sistem untuk menerapkan perubahan
-    try:
-        if system == "Windows":
-            result = subprocess.run(['ipconfig', '/all'], capture_output=True, text=True, encoding='utf-8', errors='ignore')
-            if expected_dns in result.stdout:
-                log_info(f"✓ Verifikasi DNS berhasil: {expected_dns} aktif.")
-                return True
-            else:
-                log_warn(f"⚠ Verifikasi DNS gagal. {expected_dns} tidak ditemukan di ipconfig.")
-                return False
-        elif system in ["Linux", "Darwin"]:
-            with open('/etc/resolv.conf', 'r', encoding='utf-8') as f:
-                if expected_dns in f.read():
-                    log_info("✓ Verifikasi DNS berhasil via /etc/resolv.conf.")
+
+    for interface in interfaces:
+        try:
+            if system == "Windows":
+                # Metode 1: PowerShell (lebih andal dan tidak tergantung bahasa sistem)
+                try:
+                    cmd = f'powershell -Command "Get-NetIPConfiguration -InterfaceAlias \'{interface}\' | Select-Object -ExpandProperty DnsServer | Select-Object -ExpandProperty ServerAddresses | ConvertTo-Json -Compress"'
+                    result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=5)
+                    dns_servers = json.loads(result.stdout)
+                    # PowerShell mungkin mengembalikan satu string jika hanya ada satu DNS
+                    if isinstance(dns_servers, str):
+                        dns_servers = [dns_servers]
+                    if expected_dns in dns_servers:
+                        log_info(f"✓ Verifikasi via PowerShell di '{interface}' berhasil: {expected_dns} aktif.")
+                        return True
+                except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError, subprocess.TimeoutExpired):
+                    # Metode 2: Fallback ke 'ipconfig' jika PowerShell gagal atau tidak ada
+                    log_warn("PowerShell gagal, fallback ke 'ipconfig'.")
+                    result = subprocess.run(['ipconfig', '/all'], capture_output=True, text=True, encoding='utf-8', errors='ignore')
+                    # Regex yang lebih fleksibel untuk berbagai tipe adapter (Ethernet, Wireless LAN, dll.)
+                    pattern = re.compile(rf".*?adapter {re.escape(interface)}:.*?DNS Servers.*?: ([\d\.:\s]+)", re.DOTALL | re.IGNORECASE)
+                    match = pattern.search(result.stdout)
+                    if match and expected_dns in match.group(1):
+                        log_info(f"✓ Verifikasi via ipconfig di '{interface}' berhasil: {expected_dns} aktif.")
+                        return True
+
+            elif system == "Linux" and shutil_which("nmcli"):
+                # Verifikasi spesifik via nmcli, mencari baris yang relevan
+                cmd = ['nmcli', 'dev', 'show', interface]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                for line in result.stdout.splitlines():
+                    # Cari baris IP4.DNS atau IP6.DNS yang berisi DNS yang diharapkan
+                    if (line.strip().startswith("IP4.DNS") or line.strip().startswith("IP6.DNS")) and expected_dns in line:
+                        log_info(f"✓ Verifikasi via nmcli di '{interface}' berhasil: {expected_dns} aktif.")
+                        return True
+
+            elif system == "Darwin":
+                # Verifikasi spesifik untuk macOS menggunakan perintah yang konsisten dengan setter
+                cmd = ['networksetup', '-getdnsservers', interface]
+                result = subprocess.run(cmd, capture_output=True, text=True)
+                if expected_dns in result.stdout.splitlines():
+                    log_info(f"✓ Verifikasi via networksetup di '{interface}' berhasil: {expected_dns} aktif.")
                     return True
-                else:
-                    log_warn("⚠ Verifikasi DNS gagal via /etc/resolv.conf.")
-                    return False
-    except Exception as e:
-        log_warn(f"DNS verification error: {e}")
+        except Exception as e:
+            log_warn(f"Gagal saat verifikasi DNS di '{interface}': {e}")
+            continue  # Coba interface berikutnya jika ada
+
+    log_warn(f"⚠ Verifikasi DNS gagal. {expected_dns} tidak ditemukan di interface aktif manapun.")
     return False
 
 # -------------------------
-# CSV history
+# CSV history & Dashboard (Flask)
 # -------------------------
 def save_to_csv(dns, latency):
     file_exists = os.path.isfile(CSV_FILE)
@@ -347,7 +378,6 @@ def save_to_csv(dns, latency):
     except IOError as e:
         log_err(f"Gagal menyimpan ke CSV: {e}")
 
-# [BARU] Fungsi untuk memuat history dari CSV untuk dashboard
 def load_history_from_csv(limit=20):
     history = []
     if not os.path.isfile(CSV_FILE):
@@ -355,10 +385,8 @@ def load_history_from_csv(limit=20):
     try:
         with open(CSV_FILE, 'r', newline='', encoding='utf-8') as f:
             reader = csv.reader(f)
-            # Lewati header
-            next(reader, None)
+            next(reader, None) # Lewati header
             all_data = list(reader)
-            # Ambil 'limit' baris terakhir
             for row in all_data[-limit:]:
                 try:
                     timestamp_str, _, latency_str = row
@@ -368,22 +396,23 @@ def load_history_from_csv(limit=20):
                         "latency": int(latency_str)
                     })
                 except (ValueError, IndexError):
-                    continue # Lewati baris yang formatnya salah
+                    continue
     except Exception as e:
         log_warn(f"Gagal memuat history dari CSV: {e}")
     return history
 
-# -------------------------
-# dashboard (Flask)
-# -------------------------
 app = Flask(__name__)
+
+# Lock ini penting untuk mencegah 'race condition' di mana thread utama (worker) menulis
+# data bersamaan dengan thread Flask (dashboard) yang membacanya.
+data_lock = threading.Lock()
 dashboard_data = {
     "current_dns": "N/A",
     "best_dns": "N/A",
     "latency": 0,
     "status": "Initializing...",
     "last_update": "N/A",
-    "history": load_history_from_csv(20) # [DIUBAH] Muat history saat start
+    "history": load_history_from_csv(20)
 }
 
 def get_client_info():
@@ -403,6 +432,7 @@ def get_client_info():
     
     return {"client_platform": platform_name, "client_browser": browser_name}
 
+# [KEMBALI KE FORMAT AWAL] Kode HTML dikembalikan ke format multi-baris agar mudah dibaca.
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="id">
@@ -448,10 +478,9 @@ HTML_TEMPLATE = """
         </div>
         <div class="chart-container"><canvas id="latencyChart"></canvas></div>
     </div>
-    <footer><p>Bima DNS Switcher &copy; 2024 - All rights reserved</p></footer>
+    <footer><p>DNS Switcher &copy; 2024 - All rights reserved</p></footer>
     <script>
-        // [DIUBAH] Logika JavaScript untuk Dashboard
-        let latencyChart; // Pindahkan deklarasi chart ke scope global
+        let latencyChart;
 
         function getPlatformIcon(platform) {
             const p = platform.toLowerCase();
@@ -487,10 +516,9 @@ HTML_TEMPLATE = """
         
         function updateChart(history) {
             if (!latencyChart) {
-                createChart(history); // Buat chart jika belum ada
+                createChart(history);
                 return;
             }
-            // Update data chart yang sudah ada (lebih efisien)
             latencyChart.data.labels = history.map(item => item.time);
             latencyChart.data.datasets[0].data = history.map(item => item.latency);
             latencyChart.update();
@@ -514,7 +542,7 @@ HTML_TEMPLATE = """
         }
         
         document.addEventListener('DOMContentLoaded', () => {
-            updateDashboard(); // Panggil pertama kali saat halaman siap
+            updateDashboard();
             setInterval(updateDashboard, {{ refresh_rate }} * 1000);
         });
     </script>
@@ -525,25 +553,28 @@ HTML_TEMPLATE = """
 @app.route('/')
 def dashboard():
     client_data = get_client_info()
+    with data_lock:
+        current_data = dashboard_data.copy()
     return render_template_string(HTML_TEMPLATE, 
-                                data={**dashboard_data, **client_data}, 
+                                data={**current_data, **client_data}, 
                                 refresh_rate=config['dashboard']['refresh_s'])
 
 @app.route('/data')
 def data_api():
     client_data = get_client_info()
-    return jsonify({**dashboard_data, **client_data})
+    with data_lock:
+        current_data = dashboard_data.copy()
+    return jsonify({**current_data, **client_data})
 
 def run_dashboard():
     if config['dashboard']['enabled']:
         host = config['dashboard']['host']
         port = config['dashboard']['port']
         log_info(f"Dashboard berjalan di http://{host}:{port}")
-        # Gunakan 'waitress' atau 'gunicorn' di production, server dev Flask tidak untuk production
         app.run(host=host, port=port, debug=False, use_reloader=False)
 
 # -------------------------
-# graceful shutdown
+# Graceful shutdown
 # -------------------------
 def cleanup_and_exit(signum=None, frame=None):
     log_info("Membersihkan dan keluar...")
@@ -562,7 +593,7 @@ if hasattr(signal, 'SIGHUP'):
     signal.signal(signal.SIGHUP, cleanup_and_exit)
 
 # -------------------------
-# main worker
+# Main worker
 # -------------------------
 def worker_main():
     if not is_admin():
@@ -578,6 +609,13 @@ def worker_main():
         show_error_popup(msg)
         return
 
+    # Logika untuk auto-disable IPv6
+    effective_use_ipv6 = config.get("use_ipv6", True)
+    if effective_use_ipv6 and config.get("auto_disable_ipv6", True):
+        if not check_ipv6_connectivity():
+            log_warn("Auto-disabling IPv6 karena konektivitas tidak terdeteksi.")
+            effective_use_ipv6 = False
+    
     if config['dashboard']['enabled']:
         threading.Thread(target=run_dashboard, daemon=True).start()
 
@@ -594,24 +632,27 @@ def worker_main():
                 is_game_currently_running = is_game_running()
                 if is_game_currently_running and not game_was_running:
                     log_info("Game terdeteksi, switching DNS dijeda.")
-                    dashboard_data["status"] = "Dijeda (Game Aktif)"
+                    with data_lock:
+                        dashboard_data["status"] = "Dijeda (Game Aktif)"
                 elif not is_game_currently_running and game_was_running:
                     log_info("Game berakhir, switching DNS dilanjutkan.")
-                    dashboard_data["status"] = "Berjalan"
+                    with data_lock:
+                        dashboard_data["status"] = "Berjalan"
 
             if is_game_currently_running:
                 time.sleep(config["interval"])
                 continue
-
-            dashboard_data["status"] = "Menguji..."
+            
+            with data_lock:
+                dashboard_data["status"] = "Menguji..."
             if config["clear_terminal"]:
-                clear_terminal()
+                os.system('cls' if platform.system() == 'Windows' else 'clear')
                 print("DNS Switcher - Monitoring Kinerja DNS\n" + "="*50)
                 print(f"Interface: {', '.join(interfaces)} | Interval: {config['interval']}s")
-                print(f"Deteksi Game: {'Aktif' if config['game_pause'] else 'Nonaktif'}")
+                print(f"Deteksi Game: {'Aktif' if config['game_pause'] else 'Nonaktif'} | IPv6: {'Aktif' if effective_use_ipv6 else 'Nonaktif'}")
                 print("="*50 + "\n")
 
-            all_dns = DNS_IPV4 + (DNS_IPV6 if config.get("use_ipv6") else [])
+            all_dns = DNS_IPV4 + (DNS_IPV6 if effective_use_ipv6 else [])
             log_info(f"Menguji {len(all_dns)} server DNS...")
             
             results = {}
@@ -627,36 +668,32 @@ def worker_main():
                         log_warn(f"Error saat menguji {dns_server}: {exc}")
 
             if results:
-                best_dns = min(results, key=results.get)
-                best_latency = results[best_dns]
+                best_dns, best_latency = min(results.items(), key=lambda item: item[1])
                 
                 log_info(f"DNS terbaik: {best_dns} ({best_latency} ms)")
                 
-                # Update dashboard data
-                dashboard_data.update({
-                    "best_dns": best_dns,
-                    "latency": best_latency,
-                    "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "status": "Berjalan"
-                })
-                
-                history_entry = {"time": datetime.now().strftime("%H:%M:%S"), "latency": best_latency}
-                dashboard_data["history"].append(history_entry)
-                dashboard_data["history"] = dashboard_data["history"][-20:] # Simpan 20 terakhir
+                with data_lock:
+                    dashboard_data.update({
+                        "best_dns": best_dns,
+                        "latency": best_latency,
+                        "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": "Berjalan"
+                    })
+                    history_entry = {"time": datetime.now().strftime("%H:%M:%S"), "latency": best_latency}
+                    dashboard_data["history"].append(history_entry)
+                    dashboard_data["history"] = dashboard_data["history"][-20:]
                 
                 save_to_csv(best_dns, best_latency)
                 
                 if best_dns != current_dns:
                     log_info(f"Mengganti DNS ke {best_dns}...")
-                    success_count = 0
-                    for interface in interfaces:
-                        if set_dns_on_interface(interface, best_dns):
-                            success_count += 1
+                    success_count = sum(1 for interface in interfaces if set_dns_on_interface(interface, best_dns))
                     
                     if success_count > 0:
                         log_info(f"DNS berhasil diubah pada {success_count} interface.")
                         current_dns = best_dns
-                        dashboard_data["current_dns"] = current_dns
+                        with data_lock:
+                            dashboard_data["current_dns"] = current_dns
                         verify_dns_change(interfaces, best_dns)
                     else:
                         log_err(f"Gagal mengubah DNS ke {best_dns}.")
@@ -665,7 +702,8 @@ def worker_main():
 
             else:
                 log_err("Tidak ada server DNS yang merespons. Mempertahankan DNS saat ini.")
-                dashboard_data["status"] = "Error: Tidak ada DNS"
+                with data_lock:
+                    dashboard_data["status"] = "Error: Tidak ada DNS"
 
             time.sleep(config["interval"])
             
@@ -673,10 +711,10 @@ def worker_main():
             break
         except Exception as e:
             log_err(f"Terjadi error pada loop utama: {e}")
-            time.sleep(30) # Tunggu sebentar sebelum mencoba lagi
+            time.sleep(30)
 
 # -------------------------
-# ENTRY
+# ENTRY POINT
 # -------------------------
 if __name__ == "__main__":
     log_info("DNS Switcher mulai...")
