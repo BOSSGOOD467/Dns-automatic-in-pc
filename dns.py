@@ -444,7 +444,6 @@ def get_client_info():
     return {"client_platform": platform_name, "client_browser": browser_name
 }
 
-# [IMPROVED HTML/JS] Kode HTML dengan JavaScript yang telah diperbaiki dan ditingkatkan
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="id">
@@ -836,8 +835,9 @@ def dashboard():
     client_data = get_client_info()
     with data_lock:
         current_data = dashboard_data.copy()
-    # Pastikan data yang dikirim ke template aman untuk JSON
-    current_data['history'] = json.loads(json.dumps(current_data['history']))
+        # FIX: Convert deque to list for Jinja serialization as suggested
+        if isinstance(current_data['history'], deque):
+            current_data['history'] = list(current_data['history'])
     return render_template_string(HTML_TEMPLATE, 
                                 data={**current_data, **client_data}, 
                                 refresh_rate=config['dashboard']['refresh_s'])
@@ -847,6 +847,9 @@ def data_api():
     client_data = get_client_info()
     with data_lock:
         current_data = dashboard_data.copy()
+        # Saat mengirim ke API, ubah deque menjadi list agar menjadi JSON yang valid
+        if isinstance(current_data['history'], deque):
+            current_data['history'] = list(current_data['history'])
     return jsonify({**current_data, **client_data})
 
 def run_dashboard():
