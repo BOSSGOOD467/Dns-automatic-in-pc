@@ -29,7 +29,7 @@ from collections import deque
 # -------------------------
 # CONFIG / DEFAULTS
 # -------------------------
-CONFIG_FILE = "dns_config.json"
+CONFIG_FILE = "config.json"
 STATE_FILE = "dns_state.txt"
 LOG_FILE = "dns_switcher.log"
 CSV_FILE = "dns_history.csv"
@@ -41,7 +41,7 @@ DEFAULT_CONFIG = {
     "threads": 10,
     "dns_query_count": 3,
     "dns_query_timeout_s": 1,
-    "dns_query_delay_s": 0.1,
+    "dns_query_delay_s": 0,  # [OPTIMASI] Default diubah ke 0 untuk benchmark lebih cepat
     "dns_query_domain": "google.com",
     "use_ipv6": True,
     "auto_disable_ipv6": True,
@@ -54,7 +54,10 @@ DEFAULT_CONFIG = {
     "custom_dns": [],
     "games": [],
     "clear_terminal": True,
-    "max_terminal_lines": 100
+    "max_terminal_lines": 100,
+    # [FITUR BARU] Opsi mode manual
+    "dns_selection_mode": "auto",  # Opsi: "auto" atau "manual"
+    "manual_dns": ["8.8.8.8"],     # DNS yang digunakan jika mode "manual"
 }
 
 # Master DNS lists (expanded)
@@ -129,6 +132,11 @@ def load_config():
     cfg["threads"] = max(1, min(50, cfg.get("threads", 10)))
     if "games" not in cfg:
         cfg["games"] = []
+
+    # [PERBAIKAN KEAMANAN] Peringatan jika dashboard diekspos ke jaringan
+    if cfg.get("dashboard", {}).get("enabled") and cfg.get("dashboard", {}).get("host") not in ["127.0.0.1", "localhost"]:
+        log_warn(f"Dashboard host diatur ke '{cfg['dashboard']['host']}'. Ini bisa mengekspos dashboard ke jaringan Anda. Gunakan '127.0.0.1' untuk akses lokal saja.")
+        
     return cfg
 
 config = load_config()
@@ -225,6 +233,7 @@ def test_dns_latency(dns_server):
     domain_to_query = config.get("dns_query_domain", "google.com")
     
     query_count = max(1, config.get("dns_query_count", 3))
+    delay_s = config.get("dns_query_delay_s", 0)
     latencies = []
     
     for _ in range(query_count):
@@ -233,9 +242,12 @@ def test_dns_latency(dns_server):
             resolver.resolve(domain_to_query, 'A')
             end_time = time.monotonic()
             latencies.append(int((end_time - start_time) * 1000))
-        except Exception:
+        # [BUG FIX] Menangkap exception yang lebih spesifik, bukan Exception umum
+        except (dns.resolver.Timeout, dns.resolver.NoNameservers, dns.exception.DNSException):
+            # Gagal resolve dianggap latensi tak terhingga, jadi kita abaikan
             pass
-        time.sleep(config.get("dns_query_delay_s", 0.1))
+        if delay_s > 0:
+            time.sleep(delay_s)
 
     if latencies:
         return int(median(latencies))
@@ -607,6 +619,47 @@ def worker_main():
         msg = "Tidak menemukan interface jaringan yang aktif. Periksa koneksi Anda."
         log_err(msg)
         show_error_popup(msg)
+        return
+
+    # [FITUR BARU] Logika untuk mode manual
+    if config.get("dns_selection_mode") == "manual":
+        manual_servers = config.get("manual_dns", [])
+        if not manual_servers or not manual_servers[0]:
+            msg = "Mode manual diaktifkan tapi 'manual_dns' kosong atau tidak valid di config.json."
+            log_err(msg)
+            show_error_popup(msg)
+            return
+
+        manual_dns_to_set = manual_servers[0]  # Gunakan DNS pertama dari list
+        log_info(f"Mode manual aktif. Mengatur DNS ke {manual_dns_to_set}...")
+        
+        if config['dashboard']['enabled']:
+            threading.Thread(target=run_dashboard, daemon=True).start()
+            time.sleep(1)
+
+        success_count = sum(1 for interface in interfaces if set_dns_on_interface(interface, manual_dns_to_set))
+
+        if success_count > 0:
+            log_info(f"DNS manual berhasil diatur pada {success_count} dari {len(interfaces)} interface.")
+            verify_dns_change(interfaces, manual_dns_to_set)
+            with data_lock:
+                dashboard_data.update({
+                    "current_dns": manual_dns_to_set,
+                    "best_dns": manual_dns_to_set,
+                    "latency": "N/A",
+                    "status": f"Manual Mode",
+                    "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+            log_info("Script akan tetap berjalan untuk menyajikan dashboard. Tekan Ctrl+C untuk keluar.")
+            try:
+                while True: time.sleep(3600)
+            except KeyboardInterrupt:
+                pass
+        else:
+            msg = f"Gagal mengatur DNS manual {manual_dns_to_set} pada semua interface."
+            log_err(msg)
+            show_error_popup(msg)
+        
         return
 
     # Logika untuk auto-disable IPv6
