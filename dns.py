@@ -390,7 +390,7 @@ def save_to_csv(dns, latency):
     except IOError as e:
         log_err(f"Gagal menyimpan ke CSV: {e}")
 
-def load_history_from_csv(limit=20):
+def load_history_from_csv(limit=30): # Increased limit for better chart view
     history = []
     if not os.path.isfile(CSV_FILE):
         return history
@@ -424,7 +424,7 @@ dashboard_data = {
     "latency": 0,
     "status": "Initializing...",
     "last_update": "N/A",
-    "history": load_history_from_csv(20)
+    "history": load_history_from_csv(30)
 }
 
 def get_client_info():
@@ -444,7 +444,7 @@ def get_client_info():
     return {"client_platform": platform_name, "client_browser": browser_name
 }
 
-# [KEMBALI KE FORMAT AWAL] Kode HTML dikembalikan ke format multi-baris agar mudah dibaca.
+# [IMPROVED HTML/JS] Kode HTML dengan JavaScript yang telah diperbaiki dan ditingkatkan
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="id">
@@ -471,8 +471,7 @@ HTML_TEMPLATE = """
         html,body{height:100%}
         body{
             margin:0; font-family:'Poppins',sans-serif;
-            background:linear-gradient(180deg,var(--bg),#e9eef6);
-            color:var(--text); transition:var(--transition);
+            background:var(--bg); color:var(--text); transition:var(--transition);
         }
 
         header{
@@ -496,7 +495,6 @@ HTML_TEMPLATE = """
         .card:hover{ transform:translateY(-6px); box-shadow: 0 14px 40px rgba(6,24,40,0.09) }
         h3{margin:0 0 8px 0; font-size:1rem}
 
-        /* Status badge */
         .status-badge{
             display:inline-flex; align-items:center; gap:8px;
             padding:7px 12px; border-radius:22px; color:#fff; font-weight:600;
@@ -504,135 +502,119 @@ HTML_TEMPLATE = """
             transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s;
         }
         .running{ background: var(--good); box-shadow: 0 8px 22px rgba(43,203,119,0.18) }
+        .testing{ background: var(--info); box-shadow: 0 8px 22px rgba(72,149,239,0.16) }
         .paused { background: var(--warn); box-shadow: 0 8px 22px rgba(243,156,18,0.14) }
         .error  { background: var(--bad); box-shadow: 0 8px 22px rgba(231,76,60,0.14) }
+        .manual { background: var(--secondary); box-shadow: 0 8px 22px rgba(63,55,201,0.16) }
+
+        .status-badge i { animation-duration: 1.5s; animation-iteration-count: infinite; }
+        .testing i { animation-name: pulse-icon; animation-timing-function: ease-in-out; }
+        @keyframes pulse-icon { 50% { transform: scale(1.2); } }
 
         /* animations */
         @keyframes pop { from{ transform: scale(.85); opacity:0 } to{ transform: scale(1); opacity:1 } }
         .pop-in { animation: pop .45s cubic-bezier(.22,1,.36,1) both }
 
-        @keyframes flash-green { 0%{background: rgba(43,203,119,0.0)} 50%{background: rgba(43,203,119,0.18)} 100%{background: transparent} }
-        @keyframes flash-red   { 0%{background: rgba(231,76,60,0.0)} 50%{background: rgba(231,76,60,0.14)} 100%{background: transparent} }
-
+        @keyframes flash-green { 0%{background: rgba(43,203,119,0)} 50%{background: rgba(43,203,119,0.18)} 100%{background: transparent} }
+        @keyframes flash-red   { 0%{background: rgba(231,76,60,0)} 50%{background: rgba(231,76,60,0.14)} 100%{background: transparent} }
         .flash-good{ animation: flash-green .9s ease; }
         .flash-bad { animation: flash-red .9s ease; }
 
+        .text-update { transition: opacity 0.2s ease, transform 0.2s ease; }
+        .fade-out { opacity: 0; transform: translateY(4px); }
+        .fade-in { opacity: 1; transform: translateY(0); }
+        
         .best-dns {
             font-weight:700; color:var(--primary); display:inline-block;
-            animation: pulse 1.6s ease-in-out infinite;
+            transition: transform 0.3s ease;
         }
-        @keyframes pulse { 0%,100%{ transform: scale(1) } 50%{ transform: scale(1.06) } }
-
+        
         /* small info */
-        .muted { color: rgba(0,0,0,0.55) }
-        .muted-dark { color: rgba(255,255,255,0.68) }
-
-        /* Chart area */
+        .muted { color: var(--text); opacity: 0.6; }
         .chart-wrap{ margin-top:16px; padding:12px; border-radius:10px; background:var(--card) ; box-shadow: 0 8px 30px rgba(6,24,40,0.04) }
         canvas{ width:100% !important; height: 260px !important }
 
-        /* icons */
         .meta-row{display:flex; gap:12px; align-items:center; margin-top:8px}
-        .meta { display:flex; gap:8px; align-items:center; padding:6px 10px; border-radius:10px; background: rgba(0,0,0,0.02) }
-        .meta i{font-size:1.05rem}
+        .meta { display:flex; gap:8px; align-items:center; padding:6px 10px; border-radius:10px; background: rgba(120,120,120,0.05); }
+        .meta i{font-size:1.05rem; opacity: 0.8; }
         .meta span{font-weight:600}
 
-        /* tooltip for best dns */
-        .tooltip {
-            position: relative; display:inline-block; cursor:help;
-        }
+        .tooltip { position: relative; display:inline-block; cursor:help; }
         .tooltip .tt {
-            visibility:hidden; opacity:0;
-            position:absolute; left:50%; transform:translateX(-50%);
-            bottom:calc(100% + 8px);
-            background:var(--card); color:var(--text);
+            visibility:hidden; opacity:0; position:absolute; left:50%;
+            bottom:calc(100% + 8px); background:var(--card); color:var(--text);
             padding:8px 10px; border-radius:8px; white-space:nowrap;
             box-shadow:0 8px 30px rgba(0,0,0,0.12);
             transition:opacity .18s ease, transform .18s ease;
-            transform-origin:center bottom; font-size:0.9rem;
+            transform-origin:center bottom; font-size:0.9rem; transform:translateX(-50%) translateY(4px);
         }
-        .tooltip:hover .tt { visibility:visible; opacity:1; transform:translateX(-50%) translateY(-6px) }
-        footer{ text-align:center; margin-top:22px; color:rgba(0,0,0,0.55); padding:18px 0 }
+        .tooltip:hover .tt { visibility:visible; opacity:1; transform:translateX(-50%) translateY(0) }
+        footer{ text-align:center; margin-top:22px; opacity: 0.6; padding:18px 0 }
 
-        /* responsive tweaks */
         @media (max-width:640px){
             header{ flex-direction:column; gap:8px; text-align:center }
             .meta-row{ flex-direction:column; align-items:flex-start }
         }
     </style>
 </head>
-<body>
+<body data-theme="">
     <header>
         <div class="logo"><i class="fas fa-network-wired"></i> DNS Switcher Pro</div>
         <div class="header-actions">
             <a class="icon-btn" href="https://github.com/BOSSGOOD467/Dns-automatic-in-pc" target="_blank" title="GitHub"><i class="fab fa-github"></i></a>
-            <button class="icon-btn" onclick="toggleTheme()" title="Toggle dark mode"><i class="fas fa-moon"></i></button>
+            <button class="icon-btn" onclick="toggleTheme()" title="Toggle dark mode"><i id="theme-icon" class="fas fa-moon"></i></button>
         </div>
     </header>
 
     <main class="wrap">
         <section class="grid">
-            <!-- STATUS -->
             <article class="card pop-in" id="card-status">
                 <h3>Status</h3>
-                <div id="statusBadge" class="status-badge running pop-in" aria-live="polite">
-                    <i id="statusIcon" class="fas fa-play-circle"></i>
-                    <span id="statusText">{{ data.status }}</span>
+                <div id="statusBadge" class="status-badge" aria-live="polite">
+                    <i id="statusIcon" class="fas fa-spinner fa-spin"></i>
+                    <span id="statusText">Initializing...</span>
                 </div>
 
-                <div style="margin-top:12px">
+                <div style="margin-top:16px">
                     <div class="muted">Current DNS</div>
-                    <div style="font-weight:700; margin-top:6px"><span id="current">{{ data.current_dns }}</span></div>
+                    <div style="font-weight:700; margin-top:6px; font-size: 1.1rem;"><span id="currentDns" class="text-update">{{ data.current_dns }}</span></div>
 
-                    <div class="muted" style="margin-top:8px">Latency</div>
+                    <div class="muted" style="margin-top:12px">Latency</div>
                     <div id="latWrap" style="display:flex;align-items:center;gap:10px;margin-top:6px">
-                        <div style="font-weight:700;font-size:1.05rem"><span id="lat">{{ data.latency }}</span> ms</div>
-                        <div id="latDelta" style="font-size:0.9rem;color:rgba(0,0,0,0.45)"></div>
+                        <div style="font-weight:700;font-size:1.1rem;"><span id="latency" class="text-update">{{ data.latency }}</span> ms</div>
+                        <div id="latDelta" style="font-size:0.9rem; opacity: 0.8;"></div>
                     </div>
                 </div>
 
-                <div class="meta-row" style="margin-top:12px">
-                    <div class="meta"><i class="fas fa-clock"></i><span id="last">{{ data.last_update }}</span></div>
+                <div class="meta-row" style="margin-top:16px">
+                    <div class="meta"><i class="fas fa-clock"></i><span id="lastUpdate">{{ data.last_update }}</span></div>
                     <div class="meta tooltip"><i class="fas fa-info-circle"></i><span>Info</span>
                         <div class="tt">Dashboard refresh setiap {{ refresh_rate }} detik</div>
                     </div>
                 </div>
             </article>
 
-            <!-- BEST DNS -->
             <article class="card pop-in" id="card-best">
-                <h3>Best DNS</h3>
-                <p style="margin:6px 0">
-                    <i class="fas fa-star" style="color:#f1c40f"></i>
-                    <span id="best" class="best-dns" title="Klik untuk detail"> {{ data.best_dns }}</span>
-                    <span class="tooltip" style="margin-left:8px">
-                        <i class="fas fa-question-circle" style="color:rgba(0,0,0,0.35)"></i>
-                        <div class="tt" id="bestTooltip">Dipilih berdasarkan hasil latency</div>
-                    </span>
+                <h3><i class="fas fa-star" style="color:#f1c40f"></i> DNS Terbaik</h3>
+                <p style="margin:8px 0 12px; font-size: 1.2rem;">
+                    <span id="bestDns" class="best-dns text-update"> {{ data.best_dns }}</span>
                 </p>
-
-                <div style="margin-top:8px">
-                    <div class="muted">Sumber / catatan</div>
-                    <div style="margin-top:6px;color:rgba(0,0,0,0.65)" id="bestNote">Latency-based selection</div>
-                </div>
+                <div class="muted">Dipilih berdasarkan hasil tes latency terendah dari semua server.</div>
             </article>
-
-            <!-- CLIENT -->
+            
             <article class="card pop-in" id="card-client">
-                <h3>Client</h3>
-                <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-                    <div id="platformBox" style="display:flex;flex-direction:column;align-items:center">
-                        <div id="platformIcon" style="font-size:1.6rem"><i class="fas fa-desktop"></i></div>
-                        <div style="margin-top:6px;font-weight:600"><span id="plat">{{ data.client_platform }}</span></div>
+                <h3>Client Info</h3>
+                <div style="display:flex; align-items:center; gap:20px; margin-top:12px;">
+                    <div style="text-align:center;">
+                        <div id="platformIcon" style="font-size:1.8rem; color: var(--primary);"><i class="fas fa-desktop"></i></div>
+                        <div style="margin-top:8px; font-weight:600;" id="platformName">{{ data.client_platform }}</div>
                     </div>
-
-                    <div id="browserBox" style="display:flex;flex-direction:column;align-items:center">
-                        <div id="browserIcon" style="font-size:1.6rem"><i class="fas fa-globe"></i></div>
-                        <div style="margin-top:6px;font-weight:600"><span id="brow">{{ data.client_browser }}</span></div>
+                    <div style="text-align:center;">
+                        <div id="browserIcon" style="font-size:1.8rem; color: var(--info);"><i class="fas fa-globe"></i></div>
+                        <div style="margin-top:8px; font-weight:600;" id="browserName">{{ data.client_browser }}</div>
                     </div>
                 </div>
-
-                <div style="margin-top:12px;color:rgba(0,0,0,0.6)">Tips: buka dashboard di device yang mau kamu pantau.</div>
+                <div class="muted" style="margin-top:16px; font-size: 0.9rem;">Info browser dan OS Anda yang mengakses dashboard ini.</div>
             </article>
         </section>
 
@@ -643,210 +625,208 @@ HTML_TEMPLATE = """
         <footer>DNS Switcher Pro © 2024 – <a href="https://github.com/BOSSGOOD467/Dns-automatic-in-pc" target="_blank">BOSSGOOD467</a></footer>
     </main>
 
-    <script>
-    // Small helpers
+<script>
     const refreshRate = {{ refresh_rate }};
+    let myChart = null;
+    let prevLatency = null;
+    let prevBestDns = null;
 
-    function toggleTheme(){
-        const isDark = document.body.getAttribute('data-theme') === 'dark';
-        document.body.setAttribute('data-theme', isDark ? '' : 'dark');
-        if(myChart) updateChartColors();
+    // --- HELPER FUNCTIONS ---
+    function getTextColor() {
+        return document.body.dataset.theme === 'dark' ? '#e9eef6' : '#222';
+    }
+    
+    function updateText(elementId, newText) {
+        const el = document.getElementById(elementId);
+        if (el && el.innerText !== newText.toString()) {
+            el.classList.add('fade-out');
+            setTimeout(() => {
+                el.innerText = newText;
+                el.classList.remove('fade-out');
+                el.classList.add('fade-in');
+                setTimeout(() => el.classList.remove('fade-in'), 200);
+            }, 150);
+        }
     }
 
-    // Chart.js setup
-    let myChart = null;
-    function createChart(history){
+    // --- THEME ---
+    function toggleTheme() {
+        const isDark = document.body.dataset.theme === 'dark';
+        document.body.dataset.theme = isDark ? '' : 'dark';
+        document.getElementById('theme-icon').className = isDark ? 'fas fa-moon' : 'fas fa-sun';
+        if (myChart) {
+            myChart.options.plugins.legend.labels.color = getTextColor();
+            myChart.options.scales.x.ticks.color = getTextColor();
+            myChart.options.scales.y.ticks.color = getTextColor();
+            myChart.update('none');
+        }
+    }
+
+    // --- CHART LOGIC ---
+    function createChart(history) {
         const ctx = document.getElementById('chartCanvas').getContext('2d');
-        const labels = (history||[]).map(d=>d.time);
-        const values = (history||[]).map(d=>d.latency);
         myChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: labels,
+                labels: history.map(d => d.time),
                 datasets: [{
                     label: 'Latency (ms)',
-                    data: values,
-                    borderWidth: 2,
-                    borderColor: '#4361ee',
-                    backgroundColor: 'rgba(67,97,238,0.12)',
+                    data: history.map(d => d.latency),
+                    borderWidth: 2.5,
                     fill: true,
-                    tension: 0.34,
-                    pointRadius: 3,
-                    pointHoverRadius: 6
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHitRadius: 10
                 }]
             },
             options: {
-                responsive:true,
-                animation:{ duration: 700, easing: 'easeOutQuart' },
-                plugins:{
-                    legend:{ labels:{ color: getTextColor() } },
-                    tooltip:{ mode:'index', intersect:false }
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 600, easing: 'easeOutQuart' },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { mode: 'index', intersect: false, bodySpacing: 6, titleSpacing: 6 }
                 },
-                scales:{
-                    x:{ ticks:{ color: getTextColor() } },
-                    y:{ ticks:{ color: getTextColor() }, beginAtZero:true }
+                scales: {
+                    x: { ticks: { color: getTextColor() }, grid: { display: false } },
+                    y: { ticks: { color: getTextColor(), padding: 10 }, beginAtZero: true, grid: { color: 'rgba(120,120,120,0.1)' } }
                 }
             }
         });
+        updateChart(history); // Initial color update
     }
 
-    function updateChart(history){
-        if(!myChart){ createChart(history); return; }
-        myChart.data.labels = (history||[]).map(d=>d.time);
-        myChart.data.datasets[0].data = (history||[]).map(d=>d.latency);
-        // dynamic color: last latency decides color
-        const last = history && history.length ? history[history.length-1].latency : null;
-        if(last !== null){
-            if(last < 120){ myChart.data.datasets[0].borderColor = '#4361ee'; myChart.data.datasets[0].backgroundColor = 'rgba(67,97,238,0.12)'; }
-            else if(last < 220){ myChart.data.datasets[0].borderColor = '#f39c12'; myChart.data.datasets[0].backgroundColor = 'rgba(243,156,18,0.12)'; }
-            else { myChart.data.datasets[0].borderColor = '#e74c3c'; myChart.data.datasets[0].backgroundColor = 'rgba(231,76,60,0.12)'; }
+    function updateChart(history) {
+        if (!myChart) return createChart(history);
+
+        myChart.data.labels = history.map(d => d.time);
+        myChart.data.datasets[0].data = history.map(d => d.latency);
+        
+        const lastLatency = history.length > 0 ? history[history.length - 1].latency : 0;
+        const ds = myChart.data.datasets[0];
+        
+        if (lastLatency < 80) { // Good
+            ds.borderColor = 'var(--primary)'; ds.backgroundColor = 'rgba(67, 97, 238, 0.1)';
+        } else if (lastLatency < 180) { // Warning
+            ds.borderColor = 'var(--warn)'; ds.backgroundColor = 'rgba(243, 156, 18, 0.12)';
+        } else { // Bad
+            ds.borderColor = 'var(--bad)'; ds.backgroundColor = 'rgba(231, 76, 60, 0.15)';
         }
-        updateChartColors();
-        myChart.update();
+        myChart.update('none');
     }
 
-    function updateChartColors(){
-        const dark = document.body.getAttribute('data-theme') === 'dark';
-        if(!myChart) return;
-        myChart.options.scales.x.ticks.color = dark ? '#e9eef6' : '#222';
-        myChart.options.scales.y.ticks.color = dark ? '#e9eef6' : '#222';
-        myChart.options.plugins.legend.labels.color = dark ? '#e9eef6' : '#222';
+    // --- UI UPDATE LOGIC ---
+    function updateStatus(statusStr) {
+        const badge = document.getElementById('statusBadge');
+        const icon = document.getElementById('statusIcon');
+        const text = document.getElementById('statusText');
+        
+        text.textContent = statusStr;
+        badge.className = 'status-badge'; // Reset classes
+        
+        const s = statusStr.toLowerCase();
+        if (s.includes('berjalan')) { badge.classList.add('running'); icon.className = 'fas fa-check-circle'; }
+        else if (s.includes('menguji')) { badge.classList.add('testing'); icon.className = 'fas fa-spinner'; }
+        else if (s.includes('dijeda') || s.includes('pause')) { badge.classList.add('paused'); icon.className = 'fas fa-pause-circle'; }
+        else if (s.includes('manual')) { badge.classList.add('manual'); icon.className = 'fas fa-user-cog'; }
+        else { badge.classList.add('error'); icon.className = 'fas fa-exclamation-triangle'; }
     }
-
-    // UI update logic (status, icons, animations)
-    let prevLatency = null;
-    let prevBest = null;
-    let statusTimeout = null;
-
-    function setStatus(statusStr){
-        const sText = document.getElementById('statusText');
-        const sBadge = document.getElementById('statusBadge');
-        const sIcon = document.getElementById('statusIcon');
-        sText.innerText = statusStr;
-
-        // clear classes
-        sBadge.classList.remove('running','paused','error');
-        sBadge.classList.remove('flash-good','flash-bad');
-
-        const st = statusStr.toLowerCase();
-        if(st.includes('run')) { sBadge.classList.add('running'); sIcon.className='fas fa-play-circle' }
-        else if(st.includes('pause') || st.includes('dijeda')) { sBadge.classList.add('paused'); sIcon.className='fas fa-pause-circle' }
-        else { sBadge.classList.add('error'); sIcon.className='fas fa-exclamation-circle' }
-
-        // glow animation
-        sBadge.style.transform = 'translateY(-2px) scale(1.02)';
-        clearTimeout(statusTimeout);
-        statusTimeout = setTimeout(()=> sBadge.style.transform = '', 500);
+    
+    function flashLatency(delta) {
+        const wrap = document.getElementById('latWrap');
+        const deltaEl = document.getElementById('latDelta');
+        
+        wrap.classList.remove('flash-good', 'flash-bad');
+        void wrap.offsetWidth; // Trigger reflow
+        
+        if (delta > 0) {
+            wrap.classList.add('flash-bad');
+            deltaEl.innerHTML = `<i class="fas fa-arrow-up"></i> +${delta} ms`;
+            deltaEl.style.color = 'var(--bad)';
+        } else if (delta < 0) {
+            wrap.classList.add('flash-good');
+            deltaEl.innerHTML = `<i class="fas fa-arrow-down"></i> ${Math.abs(delta)} ms`;
+            deltaEl.style.color = 'var(--good)';
+        }
+        setTimeout(() => { deltaEl.innerHTML = ''; }, 2000);
     }
-
-    function setBest(bestIp, note){
-        const el = document.getElementById('best');
-        const noteEl = document.getElementById('bestNote');
-        // pulse + flash blue
-        el.classList.remove('pulseTemp');
-        void el.offsetWidth; // reflow to restart animation if same value
-        el.classList.add('pulseTemp');
-        el.style.transition = 'transform .35s ease';
-        el.style.transform = 'scale(1.08)';
-        setTimeout(()=> el.style.transform = '', 350);
-
-        el.innerText = bestIp;
-        noteEl.innerText = note || 'Dipilih berdasarkan latency';
-
-        // tooltip update
-        const tt = document.getElementById('bestTooltip');
-        if(tt) tt.innerText = `IP: ${bestIp} – dipilih oleh algoritma latency`;
-    }
-
-    function flashLatency(delta){
-        const latWrap = document.getElementById('latWrap');
-        latWrap.classList.remove('flash-good','flash-bad');
-        if(delta > 0) latWrap.classList.add('flash-bad');
-        else if(delta < 0) latWrap.classList.add('flash-good');
-        // remove after animation
-        setTimeout(()=> latWrap.classList.remove('flash-good','flash-bad'), 900);
-        // show delta text
-        const dd = document.getElementById('latDelta');
-        if(delta > 0) dd.innerText = `▲ +${delta} ms`; else if(delta < 0) dd.innerText = `▼ ${Math.abs(delta)} ms`; else dd.innerText = '';
-    }
-
-    function setClientIcons(platform, browser){
+    
+    function updateClientIcons(platform, browser) {
+        document.getElementById('platformName').textContent = platform;
+        document.getElementById('browserName').textContent = browser;
         const pIcon = document.getElementById('platformIcon');
         const bIcon = document.getElementById('browserIcon');
-        const platText = document.getElementById('plat');
-        const browText = document.getElementById('brow');
 
-        platText.innerText = platform || 'Unknown';
-        browText.innerText = browser || 'Unknown';
-
-        // platform
-        if(platform === 'Windows') pIcon.innerHTML = '<i class="fab fa-windows"></i>';
-        else if(platform === 'Linux') pIcon.innerHTML = '<i class="fab fa-linux"></i>';
-        else if(platform === 'macOS') pIcon.innerHTML = '<i class="fab fa-apple"></i>';
+        const p = platform.toLowerCase();
+        if (p === 'windows') pIcon.innerHTML = '<i class="fab fa-windows"></i>';
+        else if (p === 'linux') pIcon.innerHTML = '<i class="fab fa-linux"></i>';
+        else if (p === 'macos') pIcon.innerHTML = '<i class="fab fa-apple"></i>';
+        else if (p === 'android') pIcon.innerHTML = '<i class="fab fa-android"></i>';
+        else if (p === 'ios') pIcon.innerHTML = '<i class="fab fa-apple"></i>';
         else pIcon.innerHTML = '<i class="fas fa-desktop"></i>';
 
-        // browser
-        if(browser === 'Chrome') bIcon.innerHTML = '<i class="fab fa-chrome"></i>';
-        else if(browser === 'Firefox') bIcon.innerHTML = '<i class="fab fa-firefox-browser"></i>';
-        else if(browser === 'Safari') bIcon.innerHTML = '<i class="fab fa-safari"></i>';
-        else if(browser === 'Edge') bIcon.innerHTML = '<i class="fab fa-edge"></i>';
+        const b = browser.toLowerCase();
+        if (b === 'chrome') bIcon.innerHTML = '<i class="fab fa-chrome"></i>';
+        else if (b === 'firefox') bIcon.innerHTML = '<i class="fab fa-firefox-browser"></i>';
+        else if (b === 'safari') bIcon.innerHTML = '<i class="fab fa-safari"></i>';
+        else if (b === 'edge') bIcon.innerHTML = '<i class="fab fa-edge"></i>';
         else bIcon.innerHTML = '<i class="fas fa-globe"></i>';
-
-        // animate icons
-        pIcon.style.transform = 'scale(.7)'; bIcon.style.transform = 'scale(.7)';
-        setTimeout(()=>{ pIcon.style.transition='transform .45s cubic-bezier(.2,1,.3,1)'; pIcon.style.transform='scale(1)'; bIcon.style.transition='transform .45s cubic-bezier(.2,1,.3,1)'; bIcon.style.transform='scale(1)'; }, 40);
     }
 
-    // fetch & update loop
-    async function fetchData(){
-        try{
+    // --- MAIN FETCH & UPDATE LOOP ---
+    async function fetchData() {
+        try {
             const res = await fetch('/data');
-            if(!res.ok) throw new Error('Network');
-            const j = await res.json();
+            if (!res.ok) throw new Error('Network response was not ok');
+            const data = await res.json();
 
-            // status
-            setStatus(j.status || 'Unknown');
-
-            // current dns
-            document.getElementById('current').innerText = j.current_dns || '-';
-
-            // latency & delta
-            const latency = (typeof j.latency === 'number') ? j.latency : parseInt(j.latency) || 0;
-            document.getElementById('lat').innerText = latency;
-            if(prevLatency !== null){
-                const delta = latency - prevLatency;
-                if(Math.abs(delta) >= 10) flashLatency(delta);
-            }
-            prevLatency = latency;
-
-            // best dns
-            if(j.best_dns && j.best_dns !== prevBest){
-                setBest(j.best_dns, j.best_note || '');
-                // little highlight on card
-                const card = document.getElementById('card-best');
-                card.style.boxShadow = '0 18px 40px rgba(67,97,238,0.12)';
-                setTimeout(()=> card.style.boxShadow = '', 800);
-                prevBest = j.best_dns;
+            updateStatus(data.status || 'Unknown');
+            updateText('currentDns', data.current_dns || 'N/A');
+            updateText('lastUpdate', data.last_update || 'N/A');
+            
+            const latency = data.latency === "N/A" ? null : parseInt(data.latency);
+            if (latency !== null) {
+                updateText('latency', latency);
+                if (prevLatency !== null && latency !== prevLatency) {
+                    flashLatency(latency - prevLatency);
+                }
+                prevLatency = latency;
+            } else {
+                updateText('latency', 'N/A');
             }
 
-            // client icons
-            setClientIcons(j.client_platform, j.client_browser);
+            if (data.best_dns && data.best_dns !== prevBestDns) {
+                updateText('bestDns', data.best_dns);
+                document.getElementById('bestDns').style.transform = 'scale(1.1)';
+                setTimeout(() => { document.getElementById('bestDns').style.transform = 'scale(1)'; }, 300);
+                prevBestDns = data.best_dns;
+            }
+            
+            updateClientIcons(data.client_platform, data.client_browser);
+            updateChart(data.history || []);
 
-            // history/chart
-            updateChart(j.history || []);
-
-        }catch(err){
-            console.error('fetch error', err);
-            setStatus('Error – Disconnected');
+        } catch (err) {
+            console.error('Fetch error:', err);
+            updateStatus('Error: Disconnected');
         }
     }
 
-    // init
-    window.addEventListener('load', ()=>{
+    // --- INITIALIZATION ---
+    window.addEventListener('load', () => {
+        // Create chart immediately with data injected from server
+        createChart({{ data.history | tojson }});
+        
+        // Fetch fresh data to populate all fields and then start the timer
         fetchData();
         setInterval(fetchData, refreshRate * 1000);
+
+        // Set initial theme icon
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            toggleTheme();
+        }
     });
-    </script>
+</script>
 </body>
 </html>
 """
@@ -856,6 +836,8 @@ def dashboard():
     client_data = get_client_info()
     with data_lock:
         current_data = dashboard_data.copy()
+    # Pastikan data yang dikirim ke template aman untuk JSON
+    current_data['history'] = json.loads(json.dumps(current_data['history']))
     return render_template_string(HTML_TEMPLATE, 
                                 data={**current_data, **client_data}, 
                                 refresh_rate=config['dashboard']['refresh_s'])
@@ -1022,8 +1004,10 @@ def worker_main():
                         "status": "Berjalan"
                     })
                     history_entry = {"time": datetime.now().strftime("%H:%M:%S"), "latency": best_latency}
+                    # Gunakan deque untuk efisiensi
+                    if not isinstance(dashboard_data["history"], deque):
+                        dashboard_data["history"] = deque(dashboard_data["history"], maxlen=30)
                     dashboard_data["history"].append(history_entry)
-                    dashboard_data["history"] = dashboard_data["history"][-20:]
                 
                 save_to_csv(best_dns, best_latency)
                 
