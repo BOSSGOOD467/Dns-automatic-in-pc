@@ -441,122 +441,411 @@ def get_client_info():
     elif 'safari' in user_agent and 'chrome' not in user_agent: browser_name = "Safari"
     elif 'edg' in user_agent: browser_name = "Edge"
     elif 'opera' in user_agent: browser_name = "Opera"
-    
-    return {"client_platform": platform_name, "client_browser": browser_name}
+    return {"client_platform": platform_name, "client_browser": browser_name
+}
 
 # [KEMBALI KE FORMAT AWAL] Kode HTML dikembalikan ke format multi-baris agar mudah dibaca.
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DNS Switcher Dashboard</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>DNS Switcher Pro – BOSSGOOD467</title>
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/5977/5977585.png" type="image/png" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <style>
-        :root { --primary: #4361ee; --secondary: #3f37c9; --success: #4cc9f0; --danger: #f72585; --warning: #f8961e; --info: #4895ef; --light: #f8f9fa; --dark: #212529; --background: #f0f2f5; --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); --transition: all 0.3s ease; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Poppins', sans-serif; background-color: var(--background); color: #333; line-height: 1.6; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        header { background: linear-gradient(120deg, var(--primary), var(--secondary)); color: white; padding: 25px 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
-        .header-content { display: flex; justify-content: space-between; align-items: center; }
-        .logo { display: flex; align-items: center; gap: 15px; } .logo i { font-size: 2.2rem; } .logo h1 { font-weight: 600; font-size: 1.8rem; }
-        .last-update { background: rgba(255, 255, 255, 0.15); padding: 8px 15px; border-radius: 20px; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin-bottom: 30px; }
-        .card { background: white; border-radius: 16px; padding: 25px; box-shadow: var(--card-shadow); transition: var(--transition); }
-        .card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .card-title { font-size: 1.2rem; font-weight: 600; color: var(--dark); display: flex; align-items: center; gap: 10px; } .card-title i { color: var(--primary); }
-        .stat-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; }
-        .badge-success { background-color: rgba(76, 201, 240, 0.15); color: #4cc9f0; } .badge-warning { background-color: rgba(248, 150, 30, 0.15); color: #f8961e; } .badge-info { background-color: rgba(72, 149, 239, 0.15); color: #4895ef; }
-        .stat-item { margin-bottom: 15px; } .stat-label { font-size: 0.9rem; color: #6c757d; display: flex; align-items: center; gap: 8px; margin-bottom: 5px; } .stat-value { font-size: 1.4rem; font-weight: 600; color: var(--dark); margin-left: 26px; }
-        .client-info { display: flex; align-items: center; gap: 15px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; }
-        .platform-icon { width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(45deg, var(--primary), var(--info)); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; }
-        .client-details { flex: 1; } .client-platform { font-weight: 600; margin-bottom: 3px; } .client-browser { font-size: 0.9rem; color: #6c757d; }
-        .chart-container { background: white; border-radius: 16px; padding: 25px; box-shadow: var(--card-shadow); margin-bottom: 30px; }
-        footer { text-align: center; padding: 20px 0; color: #6c757d; font-size: 0.9rem; border-top: 1px solid #eee; margin-top: 30px; }
-        @media (max-width: 768px) { .header-content { flex-direction: column; gap: 15px; text-align: center; } .dashboard-grid { grid-template-columns: 1fr; } }
+        :root{
+            --primary:#4361ee; --secondary:#3f37c9; --info:#4895ef;
+            --bg:#f0f2f5; --card:#ffffff; --text:#222;
+            --good:#2bcb77; --warn:#f39c12; --bad:#e74c3c;
+            --transition: all 0.35s ease;
+        }
+        [data-theme="dark"]{
+            --bg:#0f1112; --card:#151617; --text:#e9eef6;
+        }
+
+        *{box-sizing:border-box}
+        html,body{height:100%}
+        body{
+            margin:0; font-family:'Poppins',sans-serif;
+            background:linear-gradient(180deg,var(--bg),#e9eef6);
+            color:var(--text); transition:var(--transition);
+        }
+
+        header{
+            display:flex; justify-content:space-between; align-items:center;
+            padding:18px; background:linear-gradient(120deg,var(--primary),var(--secondary)); color:#fff;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+        }
+        .logo{display:flex; gap:10px; align-items:center; font-weight:600; font-size:1.15rem}
+        .logo i{font-size:1.2rem}
+        .header-actions{display:flex; gap:10px; align-items:center}
+        .icon-btn{background:transparent;border:none;color:#fff;font-size:1.05rem;cursor:pointer;padding:8px;border-radius:8px}
+        .icon-btn:hover{background:rgba(255,255,255,0.06)}
+
+        .wrap{max-width:1100px;margin:20px auto;padding:16px}
+        .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px}
+        .card{
+            background:var(--card); border-radius:12px; padding:16px;
+            box-shadow: 0 8px 30px rgba(6,24,40,0.06);
+            transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.35s;
+        }
+        .card:hover{ transform:translateY(-6px); box-shadow: 0 14px 40px rgba(6,24,40,0.09) }
+        h3{margin:0 0 8px 0; font-size:1rem}
+
+        /* Status badge */
+        .status-badge{
+            display:inline-flex; align-items:center; gap:8px;
+            padding:7px 12px; border-radius:22px; color:#fff; font-weight:600;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+            transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s;
+        }
+        .running{ background: var(--good); box-shadow: 0 8px 22px rgba(43,203,119,0.18) }
+        .paused { background: var(--warn); box-shadow: 0 8px 22px rgba(243,156,18,0.14) }
+        .error  { background: var(--bad); box-shadow: 0 8px 22px rgba(231,76,60,0.14) }
+
+        /* animations */
+        @keyframes pop { from{ transform: scale(.85); opacity:0 } to{ transform: scale(1); opacity:1 } }
+        .pop-in { animation: pop .45s cubic-bezier(.22,1,.36,1) both }
+
+        @keyframes flash-green { 0%{background: rgba(43,203,119,0.0)} 50%{background: rgba(43,203,119,0.18)} 100%{background: transparent} }
+        @keyframes flash-red   { 0%{background: rgba(231,76,60,0.0)} 50%{background: rgba(231,76,60,0.14)} 100%{background: transparent} }
+
+        .flash-good{ animation: flash-green .9s ease; }
+        .flash-bad { animation: flash-red .9s ease; }
+
+        .best-dns {
+            font-weight:700; color:var(--primary); display:inline-block;
+            animation: pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%,100%{ transform: scale(1) } 50%{ transform: scale(1.06) } }
+
+        /* small info */
+        .muted { color: rgba(0,0,0,0.55) }
+        .muted-dark { color: rgba(255,255,255,0.68) }
+
+        /* Chart area */
+        .chart-wrap{ margin-top:16px; padding:12px; border-radius:10px; background:var(--card) ; box-shadow: 0 8px 30px rgba(6,24,40,0.04) }
+        canvas{ width:100% !important; height: 260px !important }
+
+        /* icons */
+        .meta-row{display:flex; gap:12px; align-items:center; margin-top:8px}
+        .meta { display:flex; gap:8px; align-items:center; padding:6px 10px; border-radius:10px; background: rgba(0,0,0,0.02) }
+        .meta i{font-size:1.05rem}
+        .meta span{font-weight:600}
+
+        /* tooltip for best dns */
+        .tooltip {
+            position: relative; display:inline-block; cursor:help;
+        }
+        .tooltip .tt {
+            visibility:hidden; opacity:0;
+            position:absolute; left:50%; transform:translateX(-50%);
+            bottom:calc(100% + 8px);
+            background:var(--card); color:var(--text);
+            padding:8px 10px; border-radius:8px; white-space:nowrap;
+            box-shadow:0 8px 30px rgba(0,0,0,0.12);
+            transition:opacity .18s ease, transform .18s ease;
+            transform-origin:center bottom; font-size:0.9rem;
+        }
+        .tooltip:hover .tt { visibility:visible; opacity:1; transform:translateX(-50%) translateY(-6px) }
+        footer{ text-align:center; margin-top:22px; color:rgba(0,0,0,0.55); padding:18px 0 }
+
+        /* responsive tweaks */
+        @media (max-width:640px){
+            header{ flex-direction:column; gap:8px; text-align:center }
+            .meta-row{ flex-direction:column; align-items:flex-start }
+        }
     </style>
 </head>
 <body>
-    <header><div class="container"><div class="header-content"><div class="logo"><i class="fas fa-network-wired"></i><h1>DNS Switcher</h1></div><div class="last-update"><i class="fas fa-sync-alt"></i><span>Update setiap <span id="refreshRate">{{ refresh_rate }}</span> detik</span></div></div></div></header>
-    <div class="container">
-        <div class="dashboard-grid">
-            <div class="card"><div class="card-header"><h2 class="card-title"><i class="fas fa-server"></i> DNS Status</h2><span class="stat-badge badge-success" id="statusBadge">{{ data.status }}</span></div><div class="stat-item"><div class="stat-label"><i class="fas fa-exchange-alt"></i><span>Current DNS</span></div><div class="stat-value" id="currentDns">{{ data.current_dns }}</div></div><div class="stat-item"><div class="stat-label"><i class="fas fa-tachometer-alt"></i><span>Latency</span></div><div class="stat-value" id="latency">{{ data.latency }} ms</div></div></div>
-            <div class="card"><div class="card-header"><h2 class="card-title"><i class="fas fa-crown"></i> Best DNS</h2><span class="stat-badge badge-info">Recommended</span></div><div class="stat-item"><div class="stat-label"><i class="fas fa-check-circle"></i><span>Optimal Server</span></div><div class="stat-value" id="bestDns">{{ data.best_dns }}</div></div><div class="stat-item"><div class="stat-label"><i class="fas fa-clock"></i><span>Last Update</span></div><div class="stat-value" id="lastUpdate">{{ data.last_update }}</div></div></div>
-            <div class="card"><div class="card-header"><h2 class="card-title"><i class="fas fa-user"></i> Client Info</h2><span class="stat-badge badge-warning">Detected</span></div><div class="client-info"><div class="platform-icon"><i class="fas fa-desktop" id="platformIcon"></i></div><div class="client-details"><div class="client-platform" id="clientPlatform">{{ data.client_platform }}</div><div class="client-browser" id="clientBrowser">{{ data.client_browser }}</div></div></div></div>
+    <header>
+        <div class="logo"><i class="fas fa-network-wired"></i> DNS Switcher Pro</div>
+        <div class="header-actions">
+            <a class="icon-btn" href="https://github.com/BOSSGOOD467/Dns-automatic-in-pc" target="_blank" title="GitHub"><i class="fab fa-github"></i></a>
+            <button class="icon-btn" onclick="toggleTheme()" title="Toggle dark mode"><i class="fas fa-moon"></i></button>
         </div>
-        <div class="chart-container"><canvas id="latencyChart"></canvas></div>
-    </div>
-    <footer><p>DNS Switcher &copy; 2024 - All rights reserved</p></footer>
+    </header>
+
+    <main class="wrap">
+        <section class="grid">
+            <!-- STATUS -->
+            <article class="card pop-in" id="card-status">
+                <h3>Status</h3>
+                <div id="statusBadge" class="status-badge running pop-in" aria-live="polite">
+                    <i id="statusIcon" class="fas fa-play-circle"></i>
+                    <span id="statusText">{{ data.status }}</span>
+                </div>
+
+                <div style="margin-top:12px">
+                    <div class="muted">Current DNS</div>
+                    <div style="font-weight:700; margin-top:6px"><span id="current">{{ data.current_dns }}</span></div>
+
+                    <div class="muted" style="margin-top:8px">Latency</div>
+                    <div id="latWrap" style="display:flex;align-items:center;gap:10px;margin-top:6px">
+                        <div style="font-weight:700;font-size:1.05rem"><span id="lat">{{ data.latency }}</span> ms</div>
+                        <div id="latDelta" style="font-size:0.9rem;color:rgba(0,0,0,0.45)"></div>
+                    </div>
+                </div>
+
+                <div class="meta-row" style="margin-top:12px">
+                    <div class="meta"><i class="fas fa-clock"></i><span id="last">{{ data.last_update }}</span></div>
+                    <div class="meta tooltip"><i class="fas fa-info-circle"></i><span>Info</span>
+                        <div class="tt">Dashboard refresh setiap {{ refresh_rate }} detik</div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- BEST DNS -->
+            <article class="card pop-in" id="card-best">
+                <h3>Best DNS</h3>
+                <p style="margin:6px 0">
+                    <i class="fas fa-star" style="color:#f1c40f"></i>
+                    <span id="best" class="best-dns" title="Klik untuk detail"> {{ data.best_dns }}</span>
+                    <span class="tooltip" style="margin-left:8px">
+                        <i class="fas fa-question-circle" style="color:rgba(0,0,0,0.35)"></i>
+                        <div class="tt" id="bestTooltip">Dipilih berdasarkan hasil latency</div>
+                    </span>
+                </p>
+
+                <div style="margin-top:8px">
+                    <div class="muted">Sumber / catatan</div>
+                    <div style="margin-top:6px;color:rgba(0,0,0,0.65)" id="bestNote">Latency-based selection</div>
+                </div>
+            </article>
+
+            <!-- CLIENT -->
+            <article class="card pop-in" id="card-client">
+                <h3>Client</h3>
+                <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+                    <div id="platformBox" style="display:flex;flex-direction:column;align-items:center">
+                        <div id="platformIcon" style="font-size:1.6rem"><i class="fas fa-desktop"></i></div>
+                        <div style="margin-top:6px;font-weight:600"><span id="plat">{{ data.client_platform }}</span></div>
+                    </div>
+
+                    <div id="browserBox" style="display:flex;flex-direction:column;align-items:center">
+                        <div id="browserIcon" style="font-size:1.6rem"><i class="fas fa-globe"></i></div>
+                        <div style="margin-top:6px;font-weight:600"><span id="brow">{{ data.client_browser }}</span></div>
+                    </div>
+                </div>
+
+                <div style="margin-top:12px;color:rgba(0,0,0,0.6)">Tips: buka dashboard di device yang mau kamu pantau.</div>
+            </article>
+        </section>
+
+        <div class="chart-wrap">
+            <canvas id="chartCanvas"></canvas>
+        </div>
+
+        <footer>DNS Switcher Pro © 2024 – <a href="https://github.com/BOSSGOOD467/Dns-automatic-in-pc" target="_blank">BOSSGOOD467</a></footer>
+    </main>
+
     <script>
-        let latencyChart;
+    // Small helpers
+    const refreshRate = {{ refresh_rate }};
 
-        function getPlatformIcon(platform) {
-            const p = platform.toLowerCase();
-            if (p.includes('windows')) return 'fab fa-windows';
-            if (p.includes('linux')) return 'fab fa-linux';
-            if (p.includes('macos')) return 'fab fa-apple';
-            if (p.includes('android')) return 'fab fa-android';
-            if (p.includes('ios')) return 'fab fa-apple';
-            return 'fas fa-desktop';
-        }
+    function toggleTheme(){
+        const isDark = document.body.getAttribute('data-theme') === 'dark';
+        document.body.setAttribute('data-theme', isDark ? '' : 'dark');
+        if(myChart) updateChartColors();
+    }
 
-        function createChart(history) {
-            const ctx = document.getElementById('latencyChart').getContext('2d');
-            const labels = history.map(item => item.time);
-            const data = history.map(item => item.latency);
-            
-            latencyChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Latency (ms)',
-                        data: data,
-                        borderColor: 'rgb(67, 97, 238)',
-                        backgroundColor: 'rgba(67, 97, 238, 0.1)',
-                        tension: 0.3,
-                        fill: true,
-                    }]
+    // Chart.js setup
+    let myChart = null;
+    function createChart(history){
+        const ctx = document.getElementById('chartCanvas').getContext('2d');
+        const labels = (history||[]).map(d=>d.time);
+        const values = (history||[]).map(d=>d.latency);
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Latency (ms)',
+                    data: values,
+                    borderWidth: 2,
+                    borderColor: '#4361ee',
+                    backgroundColor: 'rgba(67,97,238,0.12)',
+                    fill: true,
+                    tension: 0.34,
+                    pointRadius: 3,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive:true,
+                animation:{ duration: 700, easing: 'easeOutQuart' },
+                plugins:{
+                    legend:{ labels:{ color: getTextColor() } },
+                    tooltip:{ mode:'index', intersect:false }
                 },
-                options: { responsive: true, scales: { y: { beginAtZero: true } } }
-            });
-        }
-        
-        function updateChart(history) {
-            if (!latencyChart) {
-                createChart(history);
-                return;
+                scales:{
+                    x:{ ticks:{ color: getTextColor() } },
+                    y:{ ticks:{ color: getTextColor() }, beginAtZero:true }
+                }
             }
-            latencyChart.data.labels = history.map(item => item.time);
-            latencyChart.data.datasets[0].data = history.map(item => item.latency);
-            latencyChart.update();
-        }
-
-        function updateDashboard() {
-            fetch('/data')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('latency').textContent = data.latency + ' ms';
-                    document.getElementById('lastUpdate').textContent = data.last_update;
-                    document.getElementById('currentDns').textContent = data.current_dns;
-                    document.getElementById('bestDns').textContent = data.best_dns;
-                    document.getElementById('statusBadge').textContent = data.status;
-                    document.getElementById('clientPlatform').textContent = data.client_platform;
-                    document.getElementById('clientBrowser').textContent = data.client_browser;
-                    document.getElementById('platformIcon').className = getPlatformIcon(data.client_platform);
-                    updateChart(data.history);
-                })
-                .catch(error => console.error('Error fetching data:', error));
-        }
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            updateDashboard();
-            setInterval(updateDashboard, {{ refresh_rate }} * 1000);
         });
+    }
+
+    function updateChart(history){
+        if(!myChart){ createChart(history); return; }
+        myChart.data.labels = (history||[]).map(d=>d.time);
+        myChart.data.datasets[0].data = (history||[]).map(d=>d.latency);
+        // dynamic color: last latency decides color
+        const last = history && history.length ? history[history.length-1].latency : null;
+        if(last !== null){
+            if(last < 120){ myChart.data.datasets[0].borderColor = '#4361ee'; myChart.data.datasets[0].backgroundColor = 'rgba(67,97,238,0.12)'; }
+            else if(last < 220){ myChart.data.datasets[0].borderColor = '#f39c12'; myChart.data.datasets[0].backgroundColor = 'rgba(243,156,18,0.12)'; }
+            else { myChart.data.datasets[0].borderColor = '#e74c3c'; myChart.data.datasets[0].backgroundColor = 'rgba(231,76,60,0.12)'; }
+        }
+        updateChartColors();
+        myChart.update();
+    }
+
+    function updateChartColors(){
+        const dark = document.body.getAttribute('data-theme') === 'dark';
+        if(!myChart) return;
+        myChart.options.scales.x.ticks.color = dark ? '#e9eef6' : '#222';
+        myChart.options.scales.y.ticks.color = dark ? '#e9eef6' : '#222';
+        myChart.options.plugins.legend.labels.color = dark ? '#e9eef6' : '#222';
+    }
+
+    // UI update logic (status, icons, animations)
+    let prevLatency = null;
+    let prevBest = null;
+    let statusTimeout = null;
+
+    function setStatus(statusStr){
+        const sText = document.getElementById('statusText');
+        const sBadge = document.getElementById('statusBadge');
+        const sIcon = document.getElementById('statusIcon');
+        sText.innerText = statusStr;
+
+        // clear classes
+        sBadge.classList.remove('running','paused','error');
+        sBadge.classList.remove('flash-good','flash-bad');
+
+        const st = statusStr.toLowerCase();
+        if(st.includes('run')) { sBadge.classList.add('running'); sIcon.className='fas fa-play-circle' }
+        else if(st.includes('pause') || st.includes('dijeda')) { sBadge.classList.add('paused'); sIcon.className='fas fa-pause-circle' }
+        else { sBadge.classList.add('error'); sIcon.className='fas fa-exclamation-circle' }
+
+        // glow animation
+        sBadge.style.transform = 'translateY(-2px) scale(1.02)';
+        clearTimeout(statusTimeout);
+        statusTimeout = setTimeout(()=> sBadge.style.transform = '', 500);
+    }
+
+    function setBest(bestIp, note){
+        const el = document.getElementById('best');
+        const noteEl = document.getElementById('bestNote');
+        // pulse + flash blue
+        el.classList.remove('pulseTemp');
+        void el.offsetWidth; // reflow to restart animation if same value
+        el.classList.add('pulseTemp');
+        el.style.transition = 'transform .35s ease';
+        el.style.transform = 'scale(1.08)';
+        setTimeout(()=> el.style.transform = '', 350);
+
+        el.innerText = bestIp;
+        noteEl.innerText = note || 'Dipilih berdasarkan latency';
+
+        // tooltip update
+        const tt = document.getElementById('bestTooltip');
+        if(tt) tt.innerText = `IP: ${bestIp} – dipilih oleh algoritma latency`;
+    }
+
+    function flashLatency(delta){
+        const latWrap = document.getElementById('latWrap');
+        latWrap.classList.remove('flash-good','flash-bad');
+        if(delta > 0) latWrap.classList.add('flash-bad');
+        else if(delta < 0) latWrap.classList.add('flash-good');
+        // remove after animation
+        setTimeout(()=> latWrap.classList.remove('flash-good','flash-bad'), 900);
+        // show delta text
+        const dd = document.getElementById('latDelta');
+        if(delta > 0) dd.innerText = `▲ +${delta} ms`; else if(delta < 0) dd.innerText = `▼ ${Math.abs(delta)} ms`; else dd.innerText = '';
+    }
+
+    function setClientIcons(platform, browser){
+        const pIcon = document.getElementById('platformIcon');
+        const bIcon = document.getElementById('browserIcon');
+        const platText = document.getElementById('plat');
+        const browText = document.getElementById('brow');
+
+        platText.innerText = platform || 'Unknown';
+        browText.innerText = browser || 'Unknown';
+
+        // platform
+        if(platform === 'Windows') pIcon.innerHTML = '<i class="fab fa-windows"></i>';
+        else if(platform === 'Linux') pIcon.innerHTML = '<i class="fab fa-linux"></i>';
+        else if(platform === 'macOS') pIcon.innerHTML = '<i class="fab fa-apple"></i>';
+        else pIcon.innerHTML = '<i class="fas fa-desktop"></i>';
+
+        // browser
+        if(browser === 'Chrome') bIcon.innerHTML = '<i class="fab fa-chrome"></i>';
+        else if(browser === 'Firefox') bIcon.innerHTML = '<i class="fab fa-firefox-browser"></i>';
+        else if(browser === 'Safari') bIcon.innerHTML = '<i class="fab fa-safari"></i>';
+        else if(browser === 'Edge') bIcon.innerHTML = '<i class="fab fa-edge"></i>';
+        else bIcon.innerHTML = '<i class="fas fa-globe"></i>';
+
+        // animate icons
+        pIcon.style.transform = 'scale(.7)'; bIcon.style.transform = 'scale(.7)';
+        setTimeout(()=>{ pIcon.style.transition='transform .45s cubic-bezier(.2,1,.3,1)'; pIcon.style.transform='scale(1)'; bIcon.style.transition='transform .45s cubic-bezier(.2,1,.3,1)'; bIcon.style.transform='scale(1)'; }, 40);
+    }
+
+    // fetch & update loop
+    async function fetchData(){
+        try{
+            const res = await fetch('/data');
+            if(!res.ok) throw new Error('Network');
+            const j = await res.json();
+
+            // status
+            setStatus(j.status || 'Unknown');
+
+            // current dns
+            document.getElementById('current').innerText = j.current_dns || '-';
+
+            // latency & delta
+            const latency = (typeof j.latency === 'number') ? j.latency : parseInt(j.latency) || 0;
+            document.getElementById('lat').innerText = latency;
+            if(prevLatency !== null){
+                const delta = latency - prevLatency;
+                if(Math.abs(delta) >= 10) flashLatency(delta);
+            }
+            prevLatency = latency;
+
+            // best dns
+            if(j.best_dns && j.best_dns !== prevBest){
+                setBest(j.best_dns, j.best_note || '');
+                // little highlight on card
+                const card = document.getElementById('card-best');
+                card.style.boxShadow = '0 18px 40px rgba(67,97,238,0.12)';
+                setTimeout(()=> card.style.boxShadow = '', 800);
+                prevBest = j.best_dns;
+            }
+
+            // client icons
+            setClientIcons(j.client_platform, j.client_browser);
+
+            // history/chart
+            updateChart(j.history || []);
+
+        }catch(err){
+            console.error('fetch error', err);
+            setStatus('Error – Disconnected');
+        }
+    }
+
+    // init
+    window.addEventListener('load', ()=>{
+        fetchData();
+        setInterval(fetchData, refreshRate * 1000);
+    });
     </script>
 </body>
 </html>
