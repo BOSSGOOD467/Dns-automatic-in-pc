@@ -81,8 +81,7 @@ DNS_IPV6_MASTER = [
 
 GAMES_BASE = ["valorant.exe","csgo.exe","dota2.exe","pubg.exe","apex.exe","fortnite.exe","overwatch.exe",
     "leagueoflegends.exe","minecraft.exe","gta5.exe","rust.exe","rainbowsix.exe","warzone.exe",
-    "rocketleague.exe","escape_from_tarkov.exe","palworld.exe","starfield.exe","eldenring.exe","tiktok.exe"
-"worldofwarcraft.exe","fifa24.exe","genshinimpact.exe","hogwartslegacy.exe","roblox.exe","CombatMaster.exe","HD-Player.exe"]
+    "rocketleague.exe","escape_from_tarkov.exe","palworld.exe","starfield.exe","eldenring.exe","tiktok.exe","worldofwarcraft.exe","fifa24.exe","genshinimpact.exe","hogwartslegacy.exe","roblox.exe","CombatMaster.exe","HD-Player.exe"]
 
 # -------------------------
 # LOGGING
